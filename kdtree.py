@@ -25,7 +25,7 @@ def make_tree():
 
 def test():
     root = make_tree()
-    #nodes = radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 1000, 0)
+    nodes = radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 1000, 0)
     with jsonlines.open("neutrons_test.jsonl", mode='w', compact=True) as writer:
         for node in nodes:
             line = {"id":node.id64,"crds":{"x":node.pos[0],"y":node.pos[1],"z":node.pos[2]}}

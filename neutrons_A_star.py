@@ -68,6 +68,7 @@ def find_path():
     kd_tree = kdtree.make_tree()
     print("Tree made, starting pathfinding")
     # 3 Capricorni -210.53125, -186.59375, 342.40625
+    # currently testing smaller groups to search for optimization
     start = A_Node((-4682.65625, -2902.625, 17540.3125), 0, heuristic_calc((-4682.65625, -2902.625, 17540.3125)), 22663776292)
     goal = (-4909.0625, -2045.21875, 19005.40625)
     # Colonia -9530.5, -910.28125, 19808.125
@@ -86,8 +87,7 @@ def find_path():
             return reconstruct_path(current_node)
         
         closed_set.add(current_node.id64)
-        if i % 100 == 0:
-            print(f"Node {i} added")
+        print(f"Node {i} added")
         i += 1
 
         for neighbor_node in radius_search(kd_tree, current_pos, getJumpDistance(current_fuel), 0):
