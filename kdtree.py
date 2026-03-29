@@ -10,48 +10,38 @@ class Node:
         self.id64 = id64
 
 def make_tree():
+    nodes = []
     with jsonlines.open("neutrons_test.jsonl", mode='r') as reader:
-        first = reader.read()
-        coords = first["crds"]
-        root = Node((coords['x'], coords['y'], coords['z']), first["id"])
-
         for line in reader:
             coords = line["crds"]
             id64 = line["id"]
-            kd_insert(root, (coords['x'], coords['y'], coords['z']), id64)
+            nodes.append(((coords['x'], coords['y'], coords['z']), id64))
         reader.close()
     
-    return root
+    return kd_create(nodes, 0)
 
 def test():
     root = make_tree()
-    nodes = radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 1000, 0)
+    nodes = radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 4000, 0)
     with jsonlines.open("neutrons_test.jsonl", mode='w', compact=True) as writer:
         for node in nodes:
             line = {"id":node.id64,"crds":{"x":node.pos[0],"y":node.pos[1],"z":node.pos[2]}}
             writer.write(line)
     
 
-def kd_insert(root: Node, data: tuple[float, float, float], id64: int) -> None:
-    depth = 0
-    node = Node(data, id64)
-    current = root
-    while True:
-        axis = depth % 3 # 0 = x, 1 = y, 2 = z
-        if data[axis] < current.pos[axis]:
-            if current.left == None:
-                current.left = node
-                return
-            else:
-                current = current.left
-                depth += 1
-        else: #data[axis] >= current.pos[axis]
-            if current.right == None:
-                current.right = node
-                return
-            else:
-                current = current.right
-                depth += 1
+def kd_create(nodes: list[tuple:[float, float, float], int], depth) -> None:
+    if not nodes:
+        return None
+    # previous kdtree is unbalanced, so sort nodes by axis, then pick the median as the parent
+    axis = depth % 3 # 0 = x, 1 = y, 2 = z
+    nodes.sort(key=lambda node: node[0][axis])
+    median = len(nodes) // 2
+
+    node = Node(nodes[median][0], nodes[median][1])
+    node.left = kd_create(nodes[:median], depth + 1)
+    node.right = kd_create(nodes[median + 1:], depth + 1)
+
+    return node
 
 # https://opendsa-server.cs.vt.edu/ODSA/Books/CS3/html/KDtree.html Example 15.5.3
 def radius_search(kd_root: Node, point: tuple[float, float, float], dist: float, depth: int) -> list[Node]:

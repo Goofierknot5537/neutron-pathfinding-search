@@ -5,3 +5,4 @@ This is a currently WIP code for neutron pathfinding in Elite Dangerous to (hope
 Make it faster
 - Multiprocessing/GPU?
 - Move to another language?
+- Better algorithm (priority)
