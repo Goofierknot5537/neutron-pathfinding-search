@@ -1,4 +1,6 @@
 # A lot of this was taken from https://www.datacamp.com/tutorial/a-star-algorithm
+# The LLM Claude was used for some optimizations related to the kdtree and radius search,
+# everything else was typed by hand.
 import heapq
 import kdtree
 import math
@@ -14,7 +16,6 @@ class A_Node: # terrible since it's nowhere consistent with nodes in kdtree, but
         self.fuel = None
         self.id64 = id64
 
-# https://opendsa-server.cs.vt.edu/ODSA/Books/CS3/html/KDtree.html Example 15.5.3
 def radius_search(kd_root: kdtree.Node, point: tuple[float, float, float], dist_sq: float, depth: int, result: list) -> None:
     if kd_root == None:
         return None
@@ -25,6 +26,7 @@ def radius_search(kd_root: kdtree.Node, point: tuple[float, float, float], dist_
 
     plane_dist = point[axis] - data[axis]
     
+    # Only search sides within our search radius
     if plane_dist <= 0:
         close, far = kd_root.left, kd_root.right
     else:
@@ -56,7 +58,7 @@ def reconstruct_path(goal_node: A_Node):
     path = []
     current = goal_node
     while current != None:
-        path.append(current.id64)
+        path.append([(current.coords), current.fuel, current.id64])
         current = current.parent
 
     return path[::-1]
@@ -78,18 +80,22 @@ def find_path():
 
     # A dynamic weight. This will decrease gradually until it reaches 1.
     # This makes it so A* acts greedily until a certain point, so it can find a semi-optimal path
-    dyn_w = 3.0
+    # After optimizations, though, this became obsolete.
+    dyn_w = 0.0
 
-    # 3 Capricorni -210.53125, -186.59375, 342.40625
-    # currently testing smaller groups to search for optimization
-    goal = 128893436579819
-    goal_pos = (-1985.3125, 63.15625, 16625.53125)
-    start_id = 1096665108
-    start_pos = (-8146.65625, -2898.3125, 17245.6875)
-    start = A_Node(start_pos, 0, dyn_w * heuristic_calc(start_pos, goal_pos), start_id)
     # Colonia -9530.5, -910.28125, 19808.125
+    # {"id":3238296097059,"crds":{"x":-9530.5,"y":-910.28125,"z":19808.125}}
+    goal = 3238296097059
+    goal_pos = (-9530.5, -910.28125, 19808.125)
+    start_id = 10477373803
+    start_pos = (0, 0, 0)
+    start = A_Node(start_pos, 0, (1 + dyn_w) * heuristic_calc(start_pos, goal_pos), start_id)
+    # 3 Capricorni -210.53125, -186.59375, 342.40625
+    # {"id":4994888293,"crds":{"x":-210.53125,"y":-186.59375,"z":342.40625}}
+    # Sol 0, 0, 0
+    # {"id":10477373803,"crds":{"x":0,"y":0,"z":0}}
 
-    start.fuel = 304.0
+    start.fuel = 310
 
     open_list = [(start.f, start.coords, start.fuel, start.id64)]
     open_dict = {start.id64: start}
@@ -98,6 +104,7 @@ def find_path():
     while open_list:
         _, current_pos, current_fuel, cur_id64 = heapq.heappop(open_list)
         current_node = open_dict[cur_id64]
+        open_dict.pop(cur_id64)
 
         if cur_id64 == goal:
             print("Goal found, getting path")
@@ -109,7 +116,7 @@ def find_path():
         dist2 = (x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2
 
         if dyn_w > 1:
-            dyn_w -= 0.01
+            dyn_w = dyn_w * 0.95
         else:
             dyn_w = 1
         
@@ -122,12 +129,12 @@ def find_path():
             x1, y1, z1 = neighbor_node.pos
             x2, y2, z2 = goal_pos
             dist1 = (x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2
-            if dist1 > dist2:
+            if dist1 - 1125000 > dist2:
                 continue 
             fuel_used = getJumpFuelCost(find_coord_distance(neighbor_node.pos, current_pos), current_fuel)
 
             if neighbor_node.id64 not in open_dict:
-                neighbor = A_Node(neighbor_node.pos, current_node.jumps + 1, dyn_w * heuristic_calc(neighbor_node.pos, goal_pos), neighbor_node.id64)
+                neighbor = A_Node(neighbor_node.pos, current_node.jumps + 1, (1 + dyn_w) * heuristic_calc(neighbor_node.pos, goal_pos), neighbor_node.id64)
                 neighbor.parent = current_node
                 neighbor.fuel = current_fuel - fuel_used
 
@@ -143,8 +150,13 @@ def find_path():
 
 def main():
     path = find_path()
-    print(path)
-    print(len(path))
+    prev_jump = None
+    i = 1
+    print("Jumps Left\t\tFuel Left\t\tFuel used\t\tDistance\t\tid64")
+    for jump in path:
+        print(f"{len(path) - i}\t\t\t{round(jump[1],2)}\t\t\t{round(prev_jump[1] - jump[1],3) if prev_jump else 0}\t\t\t{round(find_coord_distance(prev_jump[0],jump[0]),3) if prev_jump else 0}\t\t\t{jump[2]}")
+        prev_jump = jump
+        i += 1
 
 if __name__ == "__main__":
     #cProfile.run('main()', sort='time')

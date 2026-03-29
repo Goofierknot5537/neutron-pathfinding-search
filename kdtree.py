@@ -11,7 +11,7 @@ class Node:
 
 def make_tree():
     nodes = []
-    with jsonlines.open("neutrons_test.jsonl", mode='r') as reader:
+    with jsonlines.open("neutrons_stripped.jsonl", mode='r') as reader:
         for line in reader:
             coords = line["crds"]
             id64 = line["id"]
@@ -22,7 +22,8 @@ def make_tree():
 
 def test():
     root = make_tree()
-    nodes = radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 4000, 0)
+    nodes = []
+    radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 8000**2, 0, nodes)
     with jsonlines.open("neutrons_test.jsonl", mode='w', compact=True) as writer:
         for node in nodes:
             line = {"id":node.id64,"crds":{"x":node.pos[0],"y":node.pos[1],"z":node.pos[2]}}
@@ -43,25 +44,31 @@ def kd_create(nodes: list[tuple:[float, float, float], int], depth) -> None:
 
     return node
 
-# https://opendsa-server.cs.vt.edu/ODSA/Books/CS3/html/KDtree.html Example 15.5.3
-def radius_search(kd_root: Node, point: tuple[float, float, float], dist: float, depth: int) -> list[Node]:
+def radius_search(kd_root: Node, point: tuple[float, float, float], dist_sq: float, depth: int, result: list) -> None:
     if kd_root == None:
-        return []
-    node_list = []
+        return None
     axis = depth % 3 # 0 = x, 1 = y, 2 = z
     data = kd_root.pos
-    if node_in_radius(kd_root, point, dist):
-        node_list.append(kd_root)
-    if data[axis] >= (point[axis] - dist):
-        node_list.extend(radius_search(kd_root.left, point, dist, depth + 1))
-    if data[axis] < (point[axis] + dist):
-        node_list.extend(radius_search(kd_root.right, point, dist, depth + 1))
+    if node_in_radius(kd_root, point, dist_sq):
+        result.append(kd_root)
 
-    return node_list
+    plane_dist = point[axis] - data[axis]
+    
+    if plane_dist <= 0:
+        close, far = kd_root.left, kd_root.right
+    else:
+        far, close = kd_root.left, kd_root.right
 
-def node_in_radius(node: Node, point: tuple[float, float, float], dist: float) -> bool:
-    data = node.pos
-    if find_coord_distance(data[0], data[1], data[2], point[0], point[1], point[2]) < dist:
+    radius_search(close, point, dist_sq, depth + 1, result)
+
+    if plane_dist**2 <= dist_sq:
+        radius_search(far, point, dist_sq, depth + 1, result)
+
+def node_in_radius(node: Node, point: tuple[float, float, float], radius_sq: float) -> bool:
+    dx = node.pos[0] - point[0]
+    dy = node.pos[1] - point[1]
+    dz = node.pos[2] - point[2]
+    if dx**2 + dy**2 + dz**2 <= radius_sq:
         return True
     return False
 
