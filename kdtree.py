@@ -36,6 +36,7 @@ def test():
     
 
 def kd_create(nodes: list[tuple:[float, float, float], int], depth) -> None:
+    "Obsolete"
     if not nodes:
         return None
     # previous kdtree is unbalanced, so sort nodes by axis, then pick the median as the parent
@@ -50,6 +51,7 @@ def kd_create(nodes: list[tuple:[float, float, float], int], depth) -> None:
     return node
 
 def radius_search(kd_root: Node, point: tuple[float, float, float], dist_sq: float, depth: int, result: list) -> None:
+    "Obsolete"
     if kd_root == None:
         return None
     axis = depth % 3 # 0 = x, 1 = y, 2 = z
@@ -70,6 +72,7 @@ def radius_search(kd_root: Node, point: tuple[float, float, float], dist_sq: flo
         radius_search(far, point, dist_sq, depth + 1, result)
 
 def node_in_radius(node: Node, point: tuple[float, float, float], radius_sq: float) -> bool:
+    "Obsolete"
     dx = node.pos[0] - point[0]
     dy = node.pos[1] - point[1]
     dz = node.pos[2] - point[2]
