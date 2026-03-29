@@ -1,6 +1,7 @@
 import jsonlines
 import math
-import datetime
+from scipy.spatial import KDTree
+import numpy as np
 
 class Node:
     def __init__(self, pos: tuple[float, float, float], id64: int):
@@ -10,24 +11,28 @@ class Node:
         self.id64 = id64
 
 def make_tree():
-    nodes = []
+    nodes_coords = []
+    nodes_data = []
     with jsonlines.open("neutrons_stripped.jsonl", mode='r') as reader:
         for line in reader:
             coords = line["crds"]
             id64 = line["id"]
-            nodes.append(((coords['x'], coords['y'], coords['z']), id64))
+            nodes_coords.append((coords['x'], coords['y'], coords['z']))
+            nodes_data.append(((coords['x'], coords['y'], coords['z']), id64))
         reader.close()
     
-    return kd_create(nodes, 0)
+    coords_array = np.array(nodes_coords)
+    kd_tree = KDTree(coords_array)
+
+    return kd_tree, nodes_data
 
 def test():
-    root = make_tree()
-    nodes = []
-    radius_search(root, (-4942.9375, -2128.84375, 18043.6875), 8000**2, 0, nodes)
-    with jsonlines.open("neutrons_test.jsonl", mode='w', compact=True) as writer:
-        for node in nodes:
-            line = {"id":node.id64,"crds":{"x":node.pos[0],"y":node.pos[1],"z":node.pos[2]}}
-            writer.write(line)
+    kd_tree, nodes_data = make_tree()
+    print("Tree made")
+    indicies = kd_tree.query_ball_point((-4942.9375, -2128.84375, 18043.6875), 500, workers=4)
+    for i in indicies:
+        point1 = nodes_data[i][0]
+        print(find_coord_distance(point1, (-4942.9375, -2128.84375, 18043.6875)))
     
 
 def kd_create(nodes: list[tuple:[float, float, float], int], depth) -> None:
@@ -72,7 +77,9 @@ def node_in_radius(node: Node, point: tuple[float, float, float], radius_sq: flo
         return True
     return False
 
-def find_coord_distance(x1: float, y1: float, z1: float, x2: float, y2: float, z2: float) -> float:
+def find_coord_distance(point1: tuple[float, float, float], point2: tuple[float, float, float]) -> float:
+    x1, y1, z1 = point1
+    x2, y2, z2 = point2
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2)
 
 if __name__ == "__main__":

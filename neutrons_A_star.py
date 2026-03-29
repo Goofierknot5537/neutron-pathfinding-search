@@ -15,36 +15,7 @@ class A_Node: # terrible since it's nowhere consistent with nodes in kdtree, but
         self.parent = None
         self.fuel = None
         self.id64 = id64
-
-def radius_search(kd_root: kdtree.Node, point: tuple[float, float, float], dist_sq: float, depth: int, result: list) -> None:
-    if kd_root == None:
-        return None
-    axis = depth % 3 # 0 = x, 1 = y, 2 = z
-    data = kd_root.pos
-    if node_in_radius(kd_root, point, dist_sq):
-        result.append(kd_root)
-
-    plane_dist = point[axis] - data[axis]
-    
-    # Only search sides within our search radius
-    if plane_dist <= 0:
-        close, far = kd_root.left, kd_root.right
-    else:
-        far, close = kd_root.left, kd_root.right
-
-    radius_search(close, point, dist_sq, depth + 1, result)
-
-    if plane_dist**2 <= dist_sq:
-        radius_search(far, point, dist_sq, depth + 1, result)
-
-def node_in_radius(node: kdtree.Node, point: tuple[float, float, float], radius_sq: float) -> bool:
-    dx = node.pos[0] - point[0]
-    dy = node.pos[1] - point[1]
-    dz = node.pos[2] - point[2]
-    if dx**2 + dy**2 + dz**2 <= radius_sq:
-        return True
-    return False
-
+        
 def find_coord_distance(point1: tuple[float, float, float], point2: tuple[float, float, float]) -> float:
     x1, y1, z1 = point1
     x2, y2, z2 = point2
@@ -75,13 +46,13 @@ def getJumpDistance(fuel: float):
 
 def find_path():
     print("Starting")
-    kd_tree = kdtree.make_tree()
+    kd_tree, kd_tree_data = kdtree.make_tree()
     print("Tree made, starting pathfinding")
 
-    # A dynamic weight. This will decrease gradually until it reaches 1.
+    # A dynamic weight. This will decrease gradually until it reaches (near) 1.
     # This makes it so A* acts greedily until a certain point, so it can find a semi-optimal path
-    # After optimizations, though, this became obsolete.
-    dyn_w = 0.0
+    # Optimizations left this mostly obsolete, though. I'm looking for the global minium, after all
+    # dyn_w = 2
 
     # Colonia -9530.5, -910.28125, 19808.125
     # {"id":3238296097059,"crds":{"x":-9530.5,"y":-910.28125,"z":19808.125}}
@@ -89,7 +60,7 @@ def find_path():
     goal_pos = (-9530.5, -910.28125, 19808.125)
     start_id = 10477373803
     start_pos = (0, 0, 0)
-    start = A_Node(start_pos, 0, (1 + dyn_w) * heuristic_calc(start_pos, goal_pos), start_id)
+    start = A_Node(start_pos, 0, heuristic_calc(start_pos, goal_pos), start_id)
     # 3 Capricorni -210.53125, -186.59375, 342.40625
     # {"id":4994888293,"crds":{"x":-210.53125,"y":-186.59375,"z":342.40625}}
     # Sol 0, 0, 0
@@ -115,33 +86,29 @@ def find_path():
         x2, y2, z2 = goal_pos
         dist2 = (x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2
 
-        if dyn_w > 1:
-            dyn_w = dyn_w * 0.95
-        else:
-            dyn_w = 1
-        
-        neighbor_list = []
-        radius_search(kd_tree, current_pos, getJumpDistance(current_fuel)**2, 0, neighbor_list)
+        #dyn_w *= 0.96
+
+        nodes_i = kd_tree.query_ball_point(current_pos, getJumpDistance(current_fuel), workers=4)
+        neighbor_list = [kd_tree_data[i] for i in nodes_i]
 
         for neighbor_node in neighbor_list:
-            if neighbor_node.id64 in closed_set:
+            if neighbor_node[1] in closed_set:
                 continue
-            x1, y1, z1 = neighbor_node.pos
-            x2, y2, z2 = goal_pos
+            x1, y1, z1 = neighbor_node[0]
             dist1 = (x2 - x1)**2 + (y2 - y1)**2 + (z2 - z1)**2
-            if dist1 - 1125000 > dist2:
+            if dist1 > dist2:
                 continue 
-            fuel_used = getJumpFuelCost(find_coord_distance(neighbor_node.pos, current_pos), current_fuel)
+            fuel_used = getJumpFuelCost(find_coord_distance(neighbor_node[0], current_pos), current_fuel)
 
-            if neighbor_node.id64 not in open_dict:
-                neighbor = A_Node(neighbor_node.pos, current_node.jumps + 1, (1 + dyn_w) * heuristic_calc(neighbor_node.pos, goal_pos), neighbor_node.id64)
+            if neighbor_node[1] not in open_dict:
+                neighbor = A_Node(neighbor_node[0], current_node.jumps + 1, heuristic_calc(neighbor_node[0], goal_pos), neighbor_node[1])
                 neighbor.parent = current_node
                 neighbor.fuel = current_fuel - fuel_used
 
                 heapq.heappush(open_list, (neighbor.f, neighbor.coords, neighbor.fuel, neighbor.id64))
-                open_dict[neighbor_node.id64] = neighbor
-            elif current_node.jumps + 1 <= open_dict[neighbor_node.id64].jumps and current_fuel - fuel_used >= open_dict[neighbor_node.id64].fuel:
-                neighbor = open_dict[neighbor_node.id64]
+                open_dict[neighbor_node[1]] = neighbor
+            elif current_node.jumps + 1 <= open_dict[neighbor_node[1]].jumps and current_fuel - fuel_used >= open_dict[neighbor_node[1]].fuel:
+                neighbor = open_dict[neighbor_node[1]]
                 neighbor.jumps = current_node.jumps + 1
                 neighbor.f = neighbor.jumps + neighbor.h
                 neighbor.fuel = current_fuel - fuel_used
@@ -159,5 +126,5 @@ def main():
         i += 1
 
 if __name__ == "__main__":
-    #cProfile.run('main()', sort='time')
-    main()
+    cProfile.run('main()', sort='time')
+    #main()
